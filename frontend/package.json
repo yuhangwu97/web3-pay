@@ -1,0 +1,54 @@
+{
+  "name": "web3-payment-frontend",
+  "version": "1.0.0",
+  "description": "Web3 payment frontend with QR code generation",
+  "private": true,
+  "dependencies": {
+    "@tanstack/react-query": "^5.90.16",
+    "@types/react": "^18.2.45",
+    "@types/react-dom": "^18.2.18",
+    "@wagmi/connectors": "^4.1.14",
+    "@wagmi/core": "^2.6.5",
+    "@wagmi/vue": "^0.0.34",
+    "axios": "^1.6.2",
+    "qrcode": "^1.5.3",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-icons": "^4.12.0",
+    "react-scripts": "^5.0.1",
+    "styled-components": "^6.1.8",
+    "typescript": "^5.9.3",
+    "viem": "^2.7.15",
+    "wagmi": "^2.5.7"
+  },
+  "scripts": {
+    "start": "PORT=3001 react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ]
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "proxy": "http://localhost:3000",
+  "devDependencies": {
+    "@types/qrcode": "^1.5.6",
+    "ajv": "^8.17.1",
+    "ajv-keywords": "^5.1.0"
+  }
+}
