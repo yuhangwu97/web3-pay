@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { formatEther } from 'viem';
 import api from '../services/api';
 
 interface VerificationFormProps {
@@ -38,10 +39,10 @@ const VerificationForm: React.FC<VerificationFormProps> = ({ orderId, onBack }) 
         userId: userId
       });
 
-      if (response.data.success) {
-        setResult(response.data.data);
+      if (response.success) {
+        setResult(response.data);
       } else {
-        setErrorMsg(response.data.message || '验证失败');
+        setErrorMsg(response.message || '验证失败');
       }
     } catch (err: any) {
       setErrorMsg(err.response?.data?.message || '验证失败，请稍后重试');
@@ -76,7 +77,7 @@ const VerificationForm: React.FC<VerificationFormProps> = ({ orderId, onBack }) 
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
             <span style={{ color: '#718096' }}>金额:</span>
-            <span>{details.transaction?.value} wei</span>
+            <span>{details.transaction?.value ? `${formatEther(BigInt(details.transaction.value))} ETH` : 'N/A'}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
             <span style={{ color: '#718096' }}>区块号:</span>
@@ -250,7 +251,7 @@ const VerificationForm: React.FC<VerificationFormProps> = ({ orderId, onBack }) 
             </p>
 
             <div style={{ textAlign: 'left' }}>
-              {renderVerificationDetails(result.details)}
+              {renderVerificationDetails(result.details?.details || result.details)}
             </div>
 
             {result.details?.errors && result.details.errors.length > 0 && (

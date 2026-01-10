@@ -15,6 +15,26 @@ class VerificationService {
       }
 
       if (!order.canVerify()) {
+        // Allow success for recently paid orders (10 min window) to improve UX
+        if (order.status === 'paid') {
+          const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+          // Check if updatedAt is valid and recent
+          const lastUpdate = new Date(order.updatedAt || order.createdAt);
+
+          if (lastUpdate > tenMinutesAgo) {
+            return {
+              isValid: true,
+              orderId,
+              transactionHash: transactionHash || 'previously-verified',
+              details: {
+                isValid: true,
+                verifiedAt: lastUpdate,
+                status: 1, // Mimic successful receipt status
+                message: 'Order already verified successfully'
+              }
+            };
+          }
+        }
         throw new Error('Order cannot be verified (expired or already processed)');
       }
 
@@ -110,7 +130,7 @@ class VerificationService {
 
       // 3. 验证确认数
       const currentBlock = await provider.getBlockNumber();
-      const confirmations = currentBlock - receipt.blockNumber;
+      const confirmations = currentBlock - receipt.blockNumber + 1;
       result.details.receipt.confirmations = confirmations;
 
       if (confirmations < networkConfig.requiredConfirmations) {

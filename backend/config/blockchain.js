@@ -39,7 +39,8 @@ const NETWORKS = {
     id: 11155111,
     name: 'Sepolia',
     rpcUrls: [
-      process.env.SEPOLIA_RPC_URL || 'https://rpc.sepolia.org',
+      process.env.SEPOLIA_RPC_URL || 'https://eth-sepolia.g.alchemy.com/v2/p5pg-XYUuOssmlPiTHwES',
+      'https://rpc.sepolia.org',
       'https://sepolia.infura.io/v3/YOUR_INFURA_PROJECT_ID',
       'https://ethereum-sepolia.publicnode.com'
     ],
