@@ -5,6 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "start:prod": "http_proxy=http://127.0.0.1:7890 https_proxy=http://127.0.0.1:7890 NODE_OPTIONS='--dns-result-order=ipv6first' node -r dotenv/config server.js dotenv_config_path=.env.production",
     "dev": "nodemon server.js",
     "test": "jest"
   },

@@ -96,8 +96,21 @@ class VerificationService {
       const networkConfig = getNetworkConfig(order.networkId);
       const tokenConfig = getTokenConfig(order.tokenType);
 
-      // 1. 获取交易详情
-      const transaction = await provider.getTransaction(transactionHash);
+      // Helper for retrying operations
+      const withRetry = async (fn, retries = 3, delay = 2000) => {
+        for (let i = 0; i < retries; i++) {
+          try {
+            return await fn();
+          } catch (error) {
+            if (i === retries - 1) throw error;
+            console.warn(`Blockchain operation failed, retrying (${i + 1}/${retries})... Error: ${error.message}`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+          }
+        }
+      };
+
+      // 1. 获取交易详情 (with retry)
+      const transaction = await withRetry(() => provider.getTransaction(transactionHash));
 
       if (!transaction) {
         result.errors.push('Transaction not found on blockchain');
@@ -110,11 +123,15 @@ class VerificationService {
         to: transaction.to,
         value: transaction.value.toString(),
         data: transaction.data,
-        blockNumber: transaction.blockNumber
+        blockNumber: transaction.blockNumber,
+        nonce: transaction.nonce,
+        gasLimit: transaction.gasLimit.toString(),
+        gasPrice: transaction.gasPrice ? transaction.gasPrice.toString() : null,
+        chainId: transaction.chainId ? transaction.chainId.toString() : null
       };
 
-      // 2. 获取交易收据
-      const receipt = await provider.getTransactionReceipt(transactionHash);
+      // 2. 获取交易收据 (with retry)
+      const receipt = await withRetry(() => provider.getTransactionReceipt(transactionHash));
 
       if (!receipt || receipt.status !== 1) {
         result.errors.push('Transaction failed or not yet mined');
@@ -125,11 +142,13 @@ class VerificationService {
         status: receipt.status,
         blockNumber: receipt.blockNumber,
         gasUsed: receipt.gasUsed.toString(),
+        cumulativeGasUsed: receipt.cumulativeGasUsed.toString(),
+        effectiveGasPrice: receipt.effectiveGasPrice ? receipt.effectiveGasPrice.toString() : null,
         confirmations: null // 将在下一步计算
       };
 
       // 3. 验证确认数
-      const currentBlock = await provider.getBlockNumber();
+      const currentBlock = await withRetry(() => provider.getBlockNumber());
       const confirmations = currentBlock - receipt.blockNumber + 1;
       result.details.receipt.confirmations = confirmations;
 

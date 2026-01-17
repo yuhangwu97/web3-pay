@@ -1,14 +1,19 @@
 const Queue = require('bull');
 const Web3PaymentService = require('./web3Payment');
-const OrderService = require('./order');
-const logger = require('../../utils/logger');
+const OrderService = require('./orderService');
+const logger = require('../utils/logger');
 
 // 创建支付监控队列
 const paymentQueue = new Queue('payment-monitoring', {
   redis: {
     host: process.env.REDIS_HOST || 'localhost',
-    port: process.env.REDIS_PORT || 6379,
+    port: parseInt(process.env.REDIS_PORT) || 6379,
     password: process.env.REDIS_PASSWORD || undefined,
+  },
+  settings: {
+    lockDuration: 300000, // 5 mins
+    stalledInterval: 300000, // 5 mins
+    maxStalledCount: 3
   },
   defaultJobOptions: {
     removeOnComplete: 50, // 完成时保留50个作业
@@ -19,6 +24,7 @@ const paymentQueue = new Queue('payment-monitoring', {
 // 支付监控处理器
 paymentQueue.process(async (job) => {
   const { orderId, networkId, maxConfirmations = 1, maxAttempts = 60 } = job.data;
+  const pollingInterval = parseInt(process.env.PAYMENT_POLLING_INTERVAL) || 5000;
 
   logger.business(`开始监控订单支付: ${orderId}`, { networkId, maxConfirmations });
 
@@ -34,27 +40,26 @@ paymentQueue.process(async (job) => {
           return { success: false, error: 'Order not found' };
         }
 
+        logger.info(`执行支付检查 (${attempt}/${maxAttempts}): ${orderId}`, {
+          amount: order.amount,
+          token: order.tokenType,
+          address: order.recipientAddress,
+          networkId: order.networkId
+        });
+
         // 如果订单已经激活，停止监控
         if (order.status === 'activated') {
           logger.business(`订单已激活，停止监控: ${orderId}`);
           return { success: true, message: 'Order already activated' };
         }
 
-        // 获取支付链接以获取交易详情
-        const paymentData = await web3Service.generatePaymentLink({
-          amount: order.amount,
-          tokenType: order.token_type,
-          networkId: order.network_id,
-          recipientAddress: order.recipient_address
-        });
-
         // 检查是否有新的支付
         const autoDetectResult = await web3Service.autoDetectPayment(
-          orderId,
-          paymentData.recipientAddress,
-          order.amount,
-          order.token_type,
-          order.network_id
+          order.recipientAddress,
+          order.amount.toString(),
+          order.tokenType,
+          300, // lookbackBlocks - Increased to 300 (~1 hour) to catch older txs
+          order.networkId
         );
 
         if (autoDetectResult.success && autoDetectResult.data.found) {
@@ -73,17 +78,22 @@ paymentQueue.process(async (job) => {
             transactionHash: autoDetectResult.data.transactionHash,
             confirmations: autoDetectResult.data.confirmations
           };
+        } else {
+          logger.info(`未检测到支付 (${attempt}/${maxAttempts})`);
         }
+
+        // 更新进度
+        await job.progress(Math.floor((attempt / maxAttempts) * 100));
 
         // 如果还没到最大尝试次数，等待后继续
         if (attempt < maxAttempts) {
-          await new Promise(resolve => setTimeout(resolve, 10000)); // 10秒间隔
+          await new Promise(resolve => setTimeout(resolve, pollingInterval));
         }
 
       } catch (error) {
         logger.error(`监控尝试失败 (${attempt}/${maxAttempts}): ${orderId}`, error);
         if (attempt < maxAttempts) {
-          await new Promise(resolve => setTimeout(resolve, 5000)); // 失败时等待5秒
+          await new Promise(resolve => setTimeout(resolve, pollingInterval));
         }
       }
     }
@@ -120,17 +130,33 @@ paymentQueue.on('stalled', (job) => {
 // 添加支付监控任务
 const addPaymentMonitoring = async (orderId, networkId, options = {}) => {
   try {
+    // Check if job already exists to avoid duplicate logs/actions
+    const existingJob = await paymentQueue.getJob(orderId);
+    if (existingJob) {
+      const state = await existingJob.getState();
+      // If job is already active, waiting, or delayed, don't add again
+      if (['active', 'waiting', 'delayed'].includes(state)) {
+        // logger.debug(`Payment monitoring already active for: ${orderId} (State: ${state})`);
+        return existingJob;
+      }
+      // If job is completed or failed, we might want to restart it, but for now let's assume deduplication is main goal
+      // or optionally remove old job and add new one if specifically requested. 
+      // For this lazy polling implementation, if it's failed/completed, we probably shouldn't auto-restart blindly without user action?
+      // But let's stick to simple deduplication.
+    }
+
     const job = await paymentQueue.add({
       orderId,
       networkId,
       maxConfirmations: options.maxConfirmations || 1,
-      maxAttempts: options.maxAttempts || 60, // 默认10分钟监控
+      maxAttempts: options.maxAttempts || Math.ceil((parseInt(process.env.PAYMENT_POLLING_DURATION) || 1200000) / (parseInt(process.env.PAYMENT_POLLING_INTERVAL) || 5000)),
     }, {
+      jobId: orderId, // 使用订单ID作为Job ID，防止重复添加
       delay: 2000, // 2秒后开始监控
       attempts: 3,
       backoff: {
-        type: 'exponential',
-        delay: 5000,
+        type: 'fixed', // 使用固定间隔
+        delay: parseInt(process.env.PAYMENT_POLLING_INTERVAL) || 5000,
       },
     });
 

@@ -1,0 +1,17 @@
+port: 7890
+socks-port: 7891
+allow-lan: false
+mode: global
+log-level: info
+external-controller: 127.0.0.1:9090
+ipv6: true
+geodata-mode: false # Disable geoip to avoid MMDB requirement
+
+proxies:
+  - name: "HK01"
+    type: ss
+    server: "i.k.g.3.d.j.v.8.d.hk01-ae5.entry.v51124-4.qpon"
+    port: 19274
+    cipher: "aes-256-gcm"
+    password: "3b700ce7-fbd0-3277-9349-78ceeb772833"
+    udp: true

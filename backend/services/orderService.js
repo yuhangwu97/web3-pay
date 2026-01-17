@@ -183,6 +183,48 @@ class OrderService {
 
     return result.affectedRows;
   }
+  // 兼容旧方法的别名
+  static async getOrderByOrderId(orderId) {
+    return this.getOrder(orderId);
+  }
+
+  // 激活用户服务 (从旧的order.js迁移)
+  static async activateUserService(orderId, userId) {
+    const crypto = require('crypto');
+    // 生成Token
+    const token = `token_${crypto.randomBytes(32).toString('hex')}`;
+    const tokenExpire = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30天有效期
+
+    // 使用 db (Pool) 直接操作，因为 Order Model 可能没有这些方法
+    const pool = require('../config/database').getPool();
+
+    // 1. 更新订单状态
+    await this.updateOrderStatus(orderId, 'activated');
+    // 注意: updateOrderStatus 已经更新了 orders 表。
+    // 旧代码在这里还会更新 activated_at，Order Model 应该处理这个。
+
+    // 2. 创建或更新用户服务记录
+    const [existing] = await pool.execute('SELECT * FROM user_services WHERE order_id = ?', [orderId]);
+
+    if (existing.length > 0) {
+      // 更新现有记录
+      await pool.execute(
+        "UPDATE user_services SET access_token = ?, token_expire = ?, service_status = 'active', activated_at = NOW() WHERE order_id = ?",
+        [token, tokenExpire, orderId]
+      );
+    } else {
+      // 创建新记录
+      await pool.execute(
+        "INSERT INTO user_services (user_id, order_id, access_token, token_expire, service_status, activated_at) VALUES (?, ?, ?, ?, 'active', NOW())",
+        [userId || 'anonymous', orderId, token, tokenExpire]
+      );
+    }
+
+    return {
+      accessToken: token,
+      expireTime: Math.floor(tokenExpire.getTime() / 1000)
+    };
+  }
 }
 
 module.exports = OrderService;

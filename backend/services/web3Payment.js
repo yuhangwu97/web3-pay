@@ -1,49 +1,25 @@
-const ethers = require('ethers');
-const crypto = require('crypto');
+const { ethers } = require('ethers');
+const logger = require('../utils/logger'); // Import logger
+require('dotenv').config();
+const { getProvider } = require('../config/blockchain');
 
 // Web3 支付服务 - 处理区块链交易验证和合约调用
 class Web3PaymentService {
   constructor() {
-    // 使用Alchemy API Key（更稳定可靠）
-    this.mainnetRpcUrl = process.env.ETHEREUM_RPC_URL || 'https://eth-mainnet.g.alchemy.com/v2/p5pg-XYUuOssmlPiTHwES';
-    this.sepoliaRpcUrl = process.env.SEPOLIA_RPC_URL || 'https://eth-sepolia.g.alchemy.com/v2/p5pg-XYUuOssmlPiTHwES';
     this.contractAddress = process.env.CONTRACT_ADDRESS || '0x0000000000000000000000000000000000000000';
     this.privateKey = process.env.WALLET_PRIVATE_KEY; // 用于合约调用的私钥
 
-    // 默认使用主网provider
-    this.provider = new ethers.JsonRpcProvider(this.mainnetRpcUrl);
-
     // 初始化钱包（如果有私钥）
+    // 注意：这里默认连接到主网provider，但在具体操作中会根据chainId重新连接
     if (this.privateKey) {
-      this.wallet = new ethers.Wallet(this.privateKey, this.provider);
+      // 仅作初始化，具体使用时应该重新根据chainId获取provider
+      try {
+        const defaultProvider = getProvider(1);
+        this.wallet = new ethers.Wallet(this.privateKey, defaultProvider);
+      } catch (e) {
+        logger.warn('无法初始化默认钱包Provider', e);
+      }
     }
-  }
-
-  /**
-   * 根据链ID获取对应的RPC URL
-   * @param {number} chainId - 区块链ID
-   * @returns {string} RPC URL
-   */
-  getRpcUrl(chainId) {
-    switch (chainId) {
-      case 1:
-        return this.mainnetRpcUrl;
-      case 11155111:
-        return this.sepoliaRpcUrl;
-      default:
-        // 默认使用主网
-        return this.mainnetRpcUrl;
-    }
-  }
-
-  /**
-   * 根据链ID获取对应的provider
-   * @param {number} chainId - 区块链ID
-   * @returns {ethers.JsonRpcProvider} provider实例
-   */
-  getProvider(chainId) {
-    const rpcUrl = this.getRpcUrl(chainId);
-    return new ethers.JsonRpcProvider(rpcUrl);
   }
 
   /**
@@ -93,7 +69,7 @@ class Web3PaymentService {
       console.log(`🌐 区块链网络: ${chainId === 1 ? 'Ethereum' : chainId === 11155111 ? 'Sepolia' : 'Unknown'}`);
 
       // 获取对应网络的provider
-      const provider = this.getProvider(chainId);
+      const provider = getProvider(Number(chainId));
 
       // 1. 检查Hash是否已被使用（防欺诈）
       const isHashUsed = await this.checkHashUsed(txHash);
@@ -383,40 +359,82 @@ class Web3PaymentService {
    * @param {number} lookbackBlocks - 回溯区块数（默认10个区块）
    * @returns {Promise<Object|null>} 找到的匹配交易或null
    */
-  async autoDetectPayment(address, expectedAmount, token = 'ETH', lookbackBlocks = 10, chainId = 1) {
+  async autoDetectPayment(address, expectedAmount, token = 'ETH', lookbackBlocks = 5, chainId = 1) {
     try {
-      console.log(`🔍 开始自动检测 ${address} 的支付交易...`);
-      console.log(`💰 期望金额: ${expectedAmount} ${token}`);
+      // console.log(`🔍 自动检测支付: ${address} (${expectedAmount} ${token})`);
 
-      const provider = this.getProvider(chainId);
+      const provider = getProvider(Number(chainId));
       const currentBlock = await provider.getBlockNumber();
       const startBlock = currentBlock - lookbackBlocks;
 
-      console.log(`📦 扫描区块范围: ${startBlock} - ${currentBlock}`);
+      // 扫描最近的区块 (Batch processing)
+      const batchSize = 20;
+      for (let i = currentBlock; i > startBlock; i -= batchSize) {
+        const batchPromises = [];
+        for (let j = 0; j < batchSize && (i - j) > startBlock; j++) {
+          batchPromises.push(provider.getBlock(i - j, true));
+        }
 
-      // 获取地址的交易历史（注意：这在公共RPC上可能有限制）
-      // 在实际应用中，可能需要使用专门的索引服务如Covalent或The Graph
+        const blocks = await Promise.all(batchPromises);
 
-      // 临时实现：检查最近的几笔交易
-      // 注意：这个实现是简化的，生产环境中应该使用更可靠的方法
+        for (const block of blocks) {
+          if (!block || !block.transactions) continue;
 
-      const transactions = [];
+          for (const tx of block.transactions) {
+            // 检查收款地址
+            // tx.to can be null for contract creation transactions
+            if (tx.to && tx.to.toLowerCase() === address.toLowerCase()) {
+              // 验证金额和代币
+              let isMatch = false;
+              let actualAmount = '0';
 
-      // 这里应该使用更可靠的方法获取地址交易历史
-      // 由于公共RPC限制，我们这里返回null表示未找到
-      // 在生产环境中，可以：
-      // 1. 使用付费的RPC服务（如Alchemy, Infura的付费计划）
-      // 2. 使用区块链浏览器API（如Etherscan）
-      // 3. 使用索引服务（如Covalent, Moralis）
+              if (token === 'ETH') {
+                actualAmount = ethers.formatEther(tx.value);
+                if (Math.abs(parseFloat(actualAmount) - parseFloat(expectedAmount)) < 0.000001) {
+                  isMatch = true;
+                }
+              } else {
+                // TODO: ERC20 支持 (需要解析 input data)
+                // 暂时只支持 ETH
+              }
 
-      console.log(`⚠️ 自动检测功能需要配置专业的区块链数据服务`);
-      console.log(`💡 建议使用: Alchemy, Infura Premium, 或 Etherscan API`);
+              if (isMatch) {
+                logger.info(`✅ 检测到支付交易: ${tx.hash} (区块: ${block.number})`);
 
-      return null; // 临时返回null
+                const confirmations = currentBlock - block.number;
+                const receipt = await provider.getTransactionReceipt(tx.hash);
+
+                if (receipt.status === 1) {
+                  return {
+                    success: true,
+                    data: {
+                      found: true,
+                      transactionHash: tx.hash,
+                      confirmations,
+                      amount: actualAmount,
+                      blockNumber: block.number
+                    }
+                  };
+                } else {
+                  logger.warn(`❌ 交易已失败: ${tx.hash}`);
+                }
+              } else {
+                logger.debug(`⚠️ 发现地址匹配但条件不符: ${tx.hash}`, {
+                  expected: expectedAmount,
+                  actual: actualAmount,
+                  diff: Math.abs(parseFloat(actualAmount) - parseFloat(expectedAmount))
+                });
+              }
+            }
+          }
+        }
+      }
+
+      return { success: true, data: { found: false } };
 
     } catch (error) {
-      console.error('自动检测支付失败:', error);
-      return null;
+      console.error('自动检测支付失败:', error.message); // Reduces log spam
+      return { success: false, error: error.message };
     }
   }
 
@@ -426,7 +444,7 @@ class Web3PaymentService {
    */
   async getGasPrice(chainId = 1) {
     try {
-      const provider = this.getProvider(chainId);
+      const provider = getProvider(Number(chainId));
       const gasPrice = await provider.getFeeData();
 
       return {
@@ -447,7 +465,7 @@ class Web3PaymentService {
    */
   async getBalance(address, chainId = 1) {
     try {
-      const provider = this.getProvider(chainId);
+      const provider = getProvider(Number(chainId));
       const balance = await provider.getBalance(address);
       return ethers.formatEther(balance);
     } catch (error) {

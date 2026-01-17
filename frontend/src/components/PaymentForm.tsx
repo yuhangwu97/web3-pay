@@ -45,7 +45,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ onOrderCreated }) => {
   const [amount, setAmount] = useState<string>('0.001');
   const [tokenType, setTokenType] = useState<string>('ETH');
   const [networkId, setNetworkId] = useState<number>(11155111); // Default to Sepolia for testing
-  const [recipientAddress, setRecipientAddress] = useState<string>('0xFc09bB2B2cEc3eCc8Fc17DfA73a0C4BEF159f3Cd');
+  const [recipientAddress, setRecipientAddress] = useState<string>('0xE05C503B984DBCfCbC9538c45CFE50eB70fd66FC');
   const [userId] = useState<string>('user_' + Date.now());
   const [loading, setLoading] = useState<boolean>(false);
   const [paymentMethod, setPaymentMethod] = useState<'direct' | 'qr'>('direct'); // 默认直接支付

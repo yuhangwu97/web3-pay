@@ -8,9 +8,9 @@ const { testConnection: testRedis } = require('./config/redis');
 const { createTables } = require('./utils/initDatabase');
 
 // Import routes
+// Import routes
 const orderRoutes = require('./routes/orders');
 const verificationRoutes = require('./routes/verification');
-const webhookRoutes = require('./routes/webhooks');
 
 // Import middleware
 const {
@@ -68,12 +68,12 @@ app.get('/health', async (req, res) => {
 });
 
 // API routes
+// API routes
 app.use('/api/orders', orderRoutes);
 app.use('/api/verification', verificationRoutes);
-app.use('/api/webhooks', webhookRoutes);
 
 // Initialize payment queue
-const paymentQueue = require('./src/services/paymentQueue');
+const paymentQueue = require('./services/paymentQueue');
 console.log('🔄 支付监控队列已初始化');
 
 // 404 handler
@@ -102,13 +102,17 @@ process.on('SIGINT', () => {
 const startServer = async () => {
   try {
     console.log('🚀 Starting Web3 Payment Server...');
+    console.log('ℹ️  Environment Configuration:');
+    console.log(`   - HTTP Proxy: ${process.env.http_proxy || 'Not Set'}`);
+    console.log(`   - HTTPS Proxy: ${process.env.https_proxy || 'Not Set'}`);
+    console.log(`   - NODE_OPTIONS: ${process.env.NODE_OPTIONS || 'Not Set'}`);
 
     // Test connections
     console.log('🔍 Testing database connection...');
     await testDB();
 
     console.log('🔍 Testing Redis connection...');
-    await testRedis();
+    // await testRedis();
 
     // Initialize database
     console.log('📦 Initializing database tables...');
@@ -120,9 +124,8 @@ const startServer = async () => {
       console.log(`📊 Health check: http://localhost:${PORT}/health`);
       console.log(`🔗 API endpoints:`);
       console.log(`   POST /api/orders - Create payment order`);
-      console.log(`   GET  /api/orders/:id - Get order details`);
+      console.log(`   GET  /api/orders/:id - Get order details (triggers monitoring)`);
       console.log(`   POST /api/verification/verify - Verify payment hash`);
-      console.log(`   GET  /api/verification/auto-detect/:orderId - Auto-detect payment`);
     });
 
   } catch (error) {

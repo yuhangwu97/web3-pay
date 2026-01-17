@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 
 const OrderService = require('../services/orderService');
+const paymentQueue = require('../services/paymentQueue');
 const {
   orderCreationRateLimit,
   userRateLimit,
@@ -55,6 +56,15 @@ router.get('/:orderId', async (req, res) => {
 
     const order = await OrderService.getOrder(orderId);
 
+    // // Lazy Polling: If order is pending, trigger monitoring
+    // if (order && order.status === 'pending') {
+    //   try {
+    //     await paymentQueue.addPaymentMonitoring(orderId, order.network_id || 11155111);
+    //   } catch (err) {
+    //     console.error(`Failed to trigger monitoring for order ${orderId}:`, err.message);
+    //   }
+    // }
+
     res.json({
       success: true,
       data: order
@@ -97,27 +107,7 @@ router.get('/user/:userId', userRateLimit(20, 5 * 60 * 1000, 'user-orders'), asy
   }
 });
 
-// 检查订单状态
-router.get('/:orderId/status', async (req, res) => {
-  try {
-    const { orderId } = req.params;
 
-    const status = await OrderService.checkOrderStatus(orderId);
-
-    res.json({
-      success: true,
-      data: status
-    });
-
-  } catch (error) {
-    console.error('Check order status error:', error);
-    res.status(404).json({
-      success: false,
-      error: 'Order not found',
-      message: error.message
-    });
-  }
-});
 
 // 更新订单状态（管理员接口）
 router.put('/:orderId/status', async (req, res) => {

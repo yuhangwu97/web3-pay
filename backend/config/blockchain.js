@@ -39,10 +39,12 @@ const NETWORKS = {
     id: 11155111,
     name: 'Sepolia',
     rpcUrls: [
-      process.env.SEPOLIA_RPC_URL || 'https://eth-sepolia.g.alchemy.com/v2/p5pg-XYUuOssmlPiTHwES',
-      'https://rpc.sepolia.org',
-      'https://sepolia.infura.io/v3/YOUR_INFURA_PROJECT_ID',
-      'https://ethereum-sepolia.publicnode.com'
+      'https://ethereum-sepolia.publicnode.com',
+      // 'https://1rpc.io/sepolia', 
+      // 'https://sepolia.drpc.org',
+      // process.env.SEPOLIA_RPC_URL || 'https://eth-sepolia.g.alchemy.com/v2/demo',
+      // 'https://rpc.sepolia.org',
+      // 'https://sepolia.infura.io/v3/YOUR_INFURA_PROJECT_ID'
     ],
     requiredConfirmations: 1,
     nativeCurrency: 'ETH'
@@ -80,8 +82,17 @@ const getProvider = (networkId) => {
   }
 
   if (!providers.has(networkId)) {
-    // 使用第一个RPC URL，失败时自动切换
-    const provider = new ethers.JsonRpcProvider(network.rpcUrls[0]);
+    // Use FetchRequest to set explicit timeout for poor network conditions
+    const fetchReq = new ethers.FetchRequest(network.rpcUrls[0]);
+    fetchReq.timeout = 60000; // 60 seconds timeout
+
+    const provider = new ethers.JsonRpcProvider(fetchReq, {
+      chainId: network.id,
+      name: network.name
+    }, {
+      staticNetwork: true,
+      batchMaxCount: 1, // Disable batching to reduce complexity
+    });
     providers.set(networkId, provider);
   }
 
