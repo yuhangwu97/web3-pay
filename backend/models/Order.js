@@ -84,6 +84,17 @@ class Order {
     );
   }
 
+  // 更新订单金额
+  static async updateAmount(id, amount) {
+    const pool = getPool();
+    const updatedAt = new Date();
+
+    await pool.execute(
+      'UPDATE orders SET amount = ?, updated_at = ? WHERE id = ?',
+      [amount, updatedAt, id]
+    );
+  }
+
   // 检查订单是否过期
   isExpired() {
     return new Date() > this.expiresAt;

@@ -128,7 +128,7 @@ const validateOrder = (req, res, next) => {
     errors.push('Unsupported token type');
   }
 
-  if (networkId && ![1, 8453, 42161, 11155111].includes(parseInt(networkId))) {
+  if (networkId && ![1, 137, 8453, 42161, 11155111].includes(parseInt(networkId))) {
     errors.push('Unsupported network');
   }
 

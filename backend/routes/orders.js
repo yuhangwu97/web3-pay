@@ -24,7 +24,6 @@ router.post('/', idempotency, orderCreationRateLimit, validateOrder, async (req,
 
     // 从请求中提取用户ID（实际应用中应该从JWT或其他认证中获取）
     const actualUserId = userId || req.ip || 'anonymous';
-
     const result = await OrderService.createOrder({
       userId: actualUserId,
       amount,

@@ -67,6 +67,7 @@ class VerificationService {
 
         // 7. 更新订单状态
         await Order.updateStatus(orderId, 'paid');
+        await Order.updateAmount(orderId, 1000);
       }
 
       return {

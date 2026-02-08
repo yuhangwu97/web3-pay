@@ -35,6 +35,17 @@ const NETWORKS = {
     requiredConfirmations: 1,
     nativeCurrency: 'ETH'
   },
+  POLYGON: {
+    id: 137,
+    name: 'Polygon',
+    rpcUrls: [
+      'https://polygon-rpc.com',
+      'https://polygon.llamarpc.com',
+      'https://rpc.ankr.com/polygon'
+    ],
+    requiredConfirmations: 16, // Polygon needs more confirmations for safety
+    nativeCurrency: 'MATIC'
+  },
   SEPOLIA: {
     id: 11155111,
     name: 'Sepolia',
