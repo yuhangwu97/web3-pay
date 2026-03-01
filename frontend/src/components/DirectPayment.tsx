@@ -315,9 +315,17 @@ const DirectPayment: React.FC<DirectPaymentProps> = ({ paymentData, onPaymentSuc
     }
   ];
 
-  const TOKEN_CONTRACTS: { [key: string]: string } = {
-    USDT: '0xdAC17F958D2ee523a2206206994597C13D831ec7',
-    USDC: '0xA0b86a33E6441c86Cd40B2C6E1240F93b0c8c6c7'
+  const TOKEN_CONTRACTS: { [key: string]: { [chainId: number]: string } } = {
+    USDT: {
+      1: '0xdAC17F958D2ee523a2206206994597C13D831ec7',    // Ethereum Mainnet
+      11155111: '0xdAC17F958D2ee523a2206206994597C13D831ec7', // Sepolia (same as mainnet)
+      137: '0xc2132D05D31c914a87C6611C10748AEb04B58e8F',    // Polygon
+    },
+    USDC: {
+      1: '0xA0b86a33E6441c86Cd40B2C6E1240F93b0c8c6c7',     // Ethereum Mainnet
+      11155111: '0xA0b86a33E6441c86Cd40B2C6E1240F93b0c8c6c7', // Sepolia (same as mainnet)
+      137: '0x2791Bca1f2De4669ED8A6707C587a4aA2e48f8aD',    // Polygon
+    },
   };
 
   const TOKEN_DECIMALS: { [key: string]: number } = {
@@ -396,8 +404,8 @@ const DirectPayment: React.FC<DirectPaymentProps> = ({ paymentData, onPaymentSuc
           to: recipientAddress,
           value: parseEther(numericAmount.toString()),
         });
-      } else if (TOKEN_CONTRACTS[tokenType]) {
-        const contractAddress = TOKEN_CONTRACTS[tokenType];
+      } else if (TOKEN_CONTRACTS[tokenType]?.[networkId]) {
+        const contractAddress = TOKEN_CONTRACTS[tokenType][networkId];
         const decimals = TOKEN_DECIMALS[tokenType];
         const amountInUnits = parseUnits(numericAmount.toString(), decimals);
 
