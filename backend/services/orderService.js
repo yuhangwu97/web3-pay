@@ -3,16 +3,38 @@ const Order = require('../models/Order');
 const { getNetworkConfig, getTokenConfig, DEFAULT_NETWORK, DEFAULT_TOKEN } = require('../config/blockchain');
 
 class OrderService {
+  // 货币到代币类型的映射（处理前端发送的 currency 字段）
+  static CURRENCY_TO_TOKEN_TYPE = {
+    'eth': 'ETH',
+    'ethereum': 'ETH',
+    'btc': 'BTC',
+    'usdt': 'USDT',
+    'tether': 'USDT',
+    'usdc': 'USDC',
+    'dai': 'DAI'
+  };
+
   // 生成支付订单
   static async createOrder(orderData) {
     const {
       userId,
       amount,
-      tokenType = DEFAULT_TOKEN.symbol,
+      tokenType: rawTokenType,
       networkId = DEFAULT_NETWORK.id,
       recipientAddress = process.env.RECEIVING_ADDRESS,
-      paymentMethod
+      paymentMethod,
+      // 支持前端发送的 currency 字段
+      currency
     } = orderData;
+
+    // 处理前端发送的 currency 字段（兼容旧接口）
+    let tokenType = rawTokenType;
+    if (!tokenType && currency) {
+      tokenType = this.CURRENCY_TO_TOKEN_TYPE[currency.toLowerCase()] || currency.toUpperCase();
+    }
+    if (!tokenType) {
+      tokenType = DEFAULT_TOKEN.symbol;  // 默认使用 ETH
+    }
 
     // 验证参数
     this.validateOrderParams(amount, tokenType, networkId, recipientAddress);
@@ -100,7 +122,7 @@ class OrderService {
       const valueInWei = ethers.parseEther(amount.toString());
       uri += `?value=${valueInWei}`;
     } else {
-      // ERC20代币支付 - 生成完整的transfer调用
+      // ERC20代币支付 - 生成EIP-681格式的支付URI
       const contractAddress = tokenConfig.contractAddress;
       const amountInUnits = ethers.parseUnits(amount.toString(), tokenConfig.decimals);
 
@@ -114,7 +136,13 @@ class OrderService {
       const functionSignature = '0xa9059cbb'; // transfer(address,uint256)
       const callData = functionSignature + transferData.slice(2); // 移除0x前缀
 
-      uri += `/${contractAddress}?value=0&data=${callData}`;
+      // EIP-681 正确格式: ethereum:合约地址@chainId?data=...
+      // 注意：地址部分是合约地址，不是收款人地址！
+      uri = `ethereum:${contractAddress}`;
+      if (networkId !== 1) {
+        uri += `@${networkId}`;
+      }
+      uri += `?value=0&data=${callData}`;
     }
 
     return uri;

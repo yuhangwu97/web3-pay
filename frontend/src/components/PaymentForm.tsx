@@ -10,13 +10,24 @@ interface Network {
 }
 
 const NETWORKS: Network[] = [
-  // 暂时隐藏的其他网络
-  // {
-  //   id: 8453,
-  //   name: 'Base',
-  //   description: '推荐 - Gas费极低',
-  //   fee: '~0.001 USD'
-  // },
+  {
+    id: 8453,
+    name: 'Base',
+    description: '推荐 - Gas费极低',
+    fee: '~0.001 USD'
+  },
+  {
+    id: 137,
+    name: 'Polygon',
+    description: '推荐 - 稳定且低费',
+    fee: '~0.001 USD'
+  },
+  {
+    id: 42161,
+    name: 'Arbitrum One',
+    description: '快速确认 - 热门L2',
+    fee: '~0.001 USD'
+  },
   {
     id: 1,
     name: 'Ethereum',
@@ -28,13 +39,7 @@ const NETWORKS: Network[] = [
     name: 'Sepolia',
     description: '测试网 - 免费测试',
     fee: '~0.00 USD'
-  },
-  // {
-  //   id: 42161,
-  //   name: 'Arbitrum',
-  //   description: '快速确认',
-  //   fee: '~0.001 USD'
-  // }
+  }
 ];
 
 interface PaymentFormProps {

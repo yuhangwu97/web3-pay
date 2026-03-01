@@ -1,4 +1,4 @@
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://192.168.200.177:9082';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3000';
 
 interface CreateOrderRequest {
   userId: string;

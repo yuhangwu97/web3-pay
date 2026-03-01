@@ -158,18 +158,17 @@ class VerificationService {
         return result;
       }
 
-      // 4. 验证接收地址
-      const expectedAddress = order.recipientAddress.toLowerCase();
-      const actualAddress = transaction.to ? transaction.to.toLowerCase() : null;
-
-      if (!actualAddress || actualAddress !== expectedAddress) {
-        result.errors.push(`Address mismatch: expected ${expectedAddress}, got ${actualAddress}`);
-        return result;
-      }
-
-      // 5. 验证金额
+      // 4. 验证金额
       if (tokenConfig.isNative) {
-        // 原生代币验证
+        // 4a. 原生代币验证 (ETH/MATIC)
+        const expectedAddress = order.recipientAddress.toLowerCase();
+        const actualAddress = transaction.to ? transaction.to.toLowerCase() : null;
+
+        if (!actualAddress || actualAddress !== expectedAddress) {
+          result.errors.push(`Address mismatch: expected ${expectedAddress}, got ${actualAddress}`);
+          return result;
+        }
+
         const expectedValue = ethers.parseEther(order.amount.toString());
         const actualValue = transaction.value;
 
@@ -178,29 +177,42 @@ class VerificationService {
           return result;
         }
       } else {
-        // ERC20代币验证 - 解析交易数据
+        // 4b. ERC20代币验证 - 解析交易数据
         const transferSignature = '0xa9059cbb'; // transfer(address,uint256)
-        if (!transaction.data.startsWith(transferSignature)) {
-          result.errors.push('Invalid ERC20 transfer signature');
+        
+        // 检测是否是原生代币转账
+        const isNativeTransfer = transaction.value > 0n && (!transaction.data || transaction.data === '0x');
+        
+        if (isNativeTransfer) {
+          const tokenConfig = getTokenConfig(order.tokenType);
+          const contractAddress = tokenConfig?.contractAddress || '代币合约地址';
+          result.errors.push(
+            `❌ 检测到原生代币转账 (ETH/MATIC)，但订单要求 ${order.tokenType} (ERC20代币)。` +
+            `\n\n正确方式：请将 ${order.amount} ${order.tokenType} 转账到合约地址：` +
+            `\n${contractAddress}` +
+            `\n\n或者使用页面上的支付链接 (EIP-681格式)。`
+          );
           return result;
         }
-
-        // 解析transfer函数参数 (跳过4字节签名)
+        
+        if (!transaction.data.startsWith(transferSignature)) {
+          result.errors.push('无效的ERC20 transfer签名，请确认使用的是标准的代币转账功能');
+          return result;
+        }
+        
+        // 解析transfer函数参数
         const dataWithoutSignature = transaction.data.slice(10); // 移除0x和4字节签名
-        /* 
-           注意：这里使用 ethers.AbiCoder 解码
-           decode 返回的是 Result 对象，类似数组
-        */
         try {
           const params = ethers.AbiCoder.defaultAbiCoder().decode(
             ['address', 'uint256'],
-            ethers.dataSlice(transaction.data, 0, 68) // 4 + 32 + 32 = 68 bytes total length for selector + 2 args
+            ethers.dataSlice(transaction.data, 0, 68)
           );
 
           const recipient = params[0].toLowerCase();
           const amount = params[1];
 
-          // 验证接收地址
+          // 验证收款地址 (ERC20 转账的 recipient 在 data 里)
+          const expectedAddress = order.recipientAddress.toLowerCase();
           if (recipient !== expectedAddress) {
             result.errors.push(`ERC20 recipient mismatch: expected ${expectedAddress}, got ${recipient}`);
             return result;
@@ -213,8 +225,7 @@ class VerificationService {
             return result;
           }
         } catch (decodeError) {
-          // Fallback for some non-standard ERC20 calls or if slicing failed
-          // Try decoding purely the data part if previous slice logic was off for specific tx types
+          // Fallback 解码
           const params = ethers.AbiCoder.defaultAbiCoder().decode(
             ['address', 'uint256'],
             '0x' + dataWithoutSignature
@@ -222,13 +233,14 @@ class VerificationService {
           const recipient = params[0].toLowerCase();
           const amount = params[1];
 
+          const expectedAddress = order.recipientAddress.toLowerCase();
           if (recipient !== expectedAddress) {
-            result.errors.push(`ERC20 recipient mismatch`);
+            result.errors.push(`ERC20 recipient mismatch: expected ${expectedAddress}, got ${recipient}`);
             return result;
           }
           const expectedAmount = ethers.parseUnits(order.amount.toString(), tokenConfig.decimals);
           if (!this.isAmountValid(amount, expectedAmount, order.tokenType)) {
-            result.errors.push(`ERC20 amount mismatch`);
+            result.errors.push(`ERC20 amount mismatch: expected ${expectedAmount} (approx), got ${amount}`);
             return result;
           }
         }

@@ -35,6 +35,7 @@ router.post('/', idempotency, orderCreationRateLimit, validateOrder, async (req,
 
     res.status(201).json({
       success: true,
+      state: 201,
       data: result
     });
 
@@ -42,6 +43,7 @@ router.post('/', idempotency, orderCreationRateLimit, validateOrder, async (req,
     console.error('Create order error:', error);
     res.status(400).json({
       success: false,
+      state: 400,
       error: 'Failed to create order',
       message: error.message
     });
@@ -66,6 +68,7 @@ router.get('/:orderId', async (req, res) => {
 
     res.json({
       success: true,
+      state: 200,
       data: order
     });
 
@@ -73,6 +76,7 @@ router.get('/:orderId', async (req, res) => {
     console.error('Get order error:', error);
     res.status(404).json({
       success: false,
+      state: 404,
       error: 'Order not found',
       message: error.message
     });
@@ -89,6 +93,7 @@ router.get('/user/:userId', userRateLimit(20, 5 * 60 * 1000, 'user-orders'), asy
 
     res.json({
       success: true,
+      state: 200,
       data: orders,
       pagination: {
         page: parseInt(page),
@@ -100,6 +105,7 @@ router.get('/user/:userId', userRateLimit(20, 5 * 60 * 1000, 'user-orders'), asy
     console.error('Get user orders error:', error);
     res.status(500).json({
       success: false,
+      state: 500,
       error: 'Failed to fetch orders',
       message: error.message
     });
@@ -117,6 +123,7 @@ router.put('/:orderId/status', async (req, res) => {
     if (!['pending', 'paid', 'expired', 'failed'].includes(status)) {
       return res.status(400).json({
         success: false,
+        state: 400,
         error: 'Invalid status',
         message: 'Status must be one of: pending, paid, expired, failed'
       });
@@ -126,6 +133,7 @@ router.put('/:orderId/status', async (req, res) => {
 
     res.json({
       success: true,
+      state: 200,
       data: result
     });
 
@@ -133,6 +141,7 @@ router.put('/:orderId/status', async (req, res) => {
     console.error('Update order status error:', error);
     res.status(400).json({
       success: false,
+      state: 400,
       error: 'Failed to update order status',
       message: error.message
     });

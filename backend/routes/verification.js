@@ -30,12 +30,14 @@ router.post('/verify', idempotency, verificationRateLimit, validateHash, async (
     if (result.isValid) {
       res.json({
         success: true,
+        state: 200,
         message: 'Payment verified successfully',
         data: result
       });
     } else {
       res.status(400).json({
         success: false,
+        state: 400,
         error: 'Payment verification failed',
         message: 'Transaction does not match order requirements',
         data: result
@@ -56,6 +58,7 @@ router.post('/verify', idempotency, verificationRateLimit, validateHash, async (
 
     res.status(statusCode).json({
       success: false,
+      state: statusCode,
       error: 'Verification failed',
       message: error.message
     });
@@ -71,6 +74,7 @@ router.get('/auto-detect/:orderId', userRateLimit(30, 60 * 1000, 'auto-detect'),
 
     res.json({
       success: true,
+      state: 200,
       data: result
     });
 
@@ -78,6 +82,7 @@ router.get('/auto-detect/:orderId', userRateLimit(30, 60 * 1000, 'auto-detect'),
     console.error('Auto-detect payment error:', error);
     res.status(500).json({
       success: false,
+      state: 500,
       error: 'Auto-detection failed',
       message: error.message
     });
@@ -93,6 +98,7 @@ router.get('/history/:orderId', async (req, res) => {
 
     res.json({
       success: true,
+      state: 200,
       data: history
     });
 
@@ -100,6 +106,7 @@ router.get('/history/:orderId', async (req, res) => {
     console.error('Get verification history error:', error);
     res.status(500).json({
       success: false,
+      state: 500,
       error: 'Failed to fetch verification history',
       message: error.message
     });
@@ -114,6 +121,7 @@ router.post('/batch-verify', async (req, res) => {
     if (!Array.isArray(verifications)) {
       return res.status(400).json({
         success: false,
+        state: 400,
         error: 'Invalid request',
         message: 'verifications must be an array'
       });
@@ -147,6 +155,7 @@ router.post('/batch-verify', async (req, res) => {
 
     res.json({
       success: true,
+      state: 200,
       data: {
         total: verifications.length,
         processed: results.length,
@@ -158,6 +167,7 @@ router.post('/batch-verify', async (req, res) => {
     console.error('Batch verification error:', error);
     res.status(500).json({
       success: false,
+      state: 500,
       error: 'Batch verification failed',
       message: error.message
     });

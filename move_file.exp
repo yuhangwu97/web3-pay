@@ -1,0 +1,30 @@
+#!/usr/bin/expect -f
+
+set timeout 30
+set host "192.168.200.177"
+set user "taiz"
+set password "abcd1234"
+# Using strict path
+set dest_dir "/opt/1panel/apps/openresty/openresty/www/sites/192.168.200.177:9081/index"
+
+send_user "\n--- Moving file to final destination ---\n"
+# Using sudo -S to read password from stdin
+# Note: We echo password to sudo -S. 
+# SSH might still ask for login password.
+set cmd "echo '$password' | sudo -S sh -c 'mkdir -p $dest_dir && mv /home/taiz/web.zip $dest_dir/web.zip'"
+
+spawn ssh -o StrictHostKeyChecking=no -t $user@$host $cmd
+expect {
+    -re "(.*)assword:" {
+        # This matches SSH login password prompt
+        send "$password\r"
+        exp_continue
+    }
+    timeout {
+        send_user "\nMove Timeout\n"
+        exit 1
+    }
+    eof
+}
+
+send_user "\n--- Move Complete ---\n"

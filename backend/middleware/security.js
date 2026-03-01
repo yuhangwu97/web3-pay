@@ -62,6 +62,8 @@ const userRateLimit = (maxRequests, windowMs, keyPrefix = 'user') => {
 
       if (current > maxRequests) {
         return res.status(429).json({
+          success: false,
+          state: 429,
           error: 'Rate limit exceeded',
           message: `Too many ${keyPrefix} requests`,
           retryAfter: Math.ceil(windowMs / 1000)
@@ -87,6 +89,8 @@ const validateHash = (req, res, next) => {
 
   if (!transactionHash) {
     return res.status(400).json({
+      success: false,
+      state: 400,
       error: 'Validation error',
       message: 'Transaction hash is required'
     });
@@ -95,6 +99,8 @@ const validateHash = (req, res, next) => {
   // Basic format validation
   if (!/^0x[a-fA-F0-9]{64}$/.test(transactionHash)) {
     return res.status(400).json({
+      success: false,
+      state: 400,
       error: 'Validation error',
       message: 'Invalid transaction hash format'
     });
@@ -124,8 +130,21 @@ const validateOrder = (req, res, next) => {
     errors.push('Valid recipient address is required');
   }
 
-  if (tokenType && !['ETH', 'USDT', 'USDC'].includes(tokenType.toUpperCase())) {
-    errors.push('Unsupported token type');
+  // Handle tokenType - sanitize input like "USDT (ERC20)"
+  if (tokenType && typeof tokenType === 'string') {
+    // Extract first word/part before space or parenthesis
+    const cleanTokenType = tokenType.split(/[ (\t]/)[0].toUpperCase();
+
+    // Update req.body so downstream handlers get the clean token type
+    if (cleanTokenType !== tokenType) {
+      req.body.tokenType = cleanTokenType;
+    }
+
+    if (!['ETH', 'USDT', 'USDC'].includes(cleanTokenType)) {
+      errors.push(`Unsupported token type: ${tokenType}`);
+    }
+  } else if (tokenType) {
+    errors.push('Invalid token type format');
   }
 
   if (networkId && ![1, 137, 8453, 42161, 11155111].includes(parseInt(networkId))) {
@@ -134,6 +153,8 @@ const validateOrder = (req, res, next) => {
 
   if (errors.length > 0) {
     return res.status(400).json({
+      success: false,
+      state: 400,
       error: 'Validation error',
       message: errors.join(', ')
     });
@@ -197,6 +218,8 @@ const errorHandler = (err, req, res, next) => {
   // Mongoose validation error
   if (err.name === 'ValidationError') {
     return res.status(400).json({
+      success: false,
+      state: 400,
       error: 'Validation error',
       message: Object.values(err.errors).map(e => e.message).join(', ')
     });
@@ -205,13 +228,18 @@ const errorHandler = (err, req, res, next) => {
   // JWT errors
   if (err.name === 'JsonWebTokenError') {
     return res.status(401).json({
+      success: false,
+      state: 401,
       error: 'Authentication error',
       message: 'Invalid token'
     });
   }
 
   // Default error
-  res.status(err.status || 500).json({
+  const statusCode = err.status || 500;
+  res.status(statusCode).json({
+    success: false,
+    state: statusCode,
     error: 'Internal server error',
     message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong'
   });
